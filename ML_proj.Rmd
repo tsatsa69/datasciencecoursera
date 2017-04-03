@@ -1,0 +1,85 @@
+---
+title: "Machine Learning Project"
+author: "Ivan Tsatsarov"
+date: "April 2, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Introduction
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+#Data Load
+
+```{r load}
+training<-read.csv("pml-training.csv")
+testing<-read.csv("pml-testing.csv")
+
+```
+
+#Data Clean
+Remove Variables that have more than 50 % of NA.
+Remove variables with zero variance
+Remove first identity column
+Remove timestamp columns
+
+```{r clean}
+library(caret)
+nz<-nearZeroVar(training, saveMetrics = TRUE)
+training<-training[,!nz$nzv]
+more50NA<-function(x) 
+  if(sum(is.na(training[, x])) > 0.50*nrow(training))    {return(TRUE)
+}else{
+return(FALSE)
+}
+c50NA<-sapply(colnames(training),more50NA)
+training<-training[,!c50NA]
+training<-training[,c(2:59)]
+training<-training[,-c(2,3,4)]
+
+```
+
+
+## Cross Validation sets
+
+From Training data I separate 70 % as training and 30 %as test
+
+```{r cross}
+library(caret)
+set.seed(1234)
+my_train <- createDataPartition(y=training$classe,p=.70,list=F)
+my_training <- training[my_train,]
+my_testing <- training[-my_train,]
+```
+
+##Testing different models
+```{r model eval:FALSE,cache:TRUE,results:"hide"}
+tc <- trainControl(method = "cv", number = 1, verboseIter=FALSE , preProcOptions="pca", allowParallel=FALSE)
+
+rf <- train(classe ~ ., data = my_training, method = "rf",tControl=tc)
+svml <- train(classe ~ ., data = my_training, method = "svmLinear",tControl=tc)
+
+ldam <- train(classe ~ ., data = my_training, method = "lda",tControl=tc)
+
+rdam <- train(classe ~ ., data = my_training, method = "rda",tControl=tc)
+
+rf$results$Accuracy
+svml$result$Accuracy
+ldam$results$Accuracy
+rdam$results$Accuracy
+```
+
+# Accuracy for 4 methods is 
+Random Forest - 0.9953
+Linear Support Vector Machine - 0.80
+Linear Discriminant Analysis -0.74
+Regularized Discriminant Analysis -0.91
+
+From Accuracy values I decide to use Random Forest
+```{r predictions cache:TRUE,eval=FALSE}
+predict_rf<-predict(rf,testing)
+predict_matrix<-data.frame(testing$X,predict_rf)
+```
